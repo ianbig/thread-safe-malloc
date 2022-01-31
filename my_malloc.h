@@ -26,17 +26,22 @@ pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct memory_control_block memory_control_block;
 memory_control_block * block_manager = NULL;
-void init_memory_control_block();
+
+// __thread memory_control_block * block_manager_thread_local = NULL;
 
 void * ts_malloc_lock(size_t size);
 void ts_free_lock(void * ptr);
-void init_memory_control_block();
-void * bf_malloc(size_t size);
-void * bf_getBlock(size_t size);
-void bf_free(void * ptr);
-void * insertToList(memory_block_meta * toAdd);
-void * removeFromList(memory_block_meta * toRemove);
-void * getNewBlock(size_t size);
+
+// void * ts_malloc_nolock(size_t size);
+// void ts_free_nolock(void * ptr);
+
+void init_memory_control_block(memory_control_block ** block_manager);
+void * bf_malloc(size_t size, memory_control_block ** block_manager);
+void * bf_getBlock(size_t size, memory_control_block * block_manager);
+void bf_free(void * ptr, memory_control_block * block_manager);
+void * insertToList(memory_block_meta * toAdd, memory_control_block * block_manager);
+void * removeFromList(memory_block_meta * toRemove, memory_control_block * block_manager);
+void * getNewBlock(size_t size, memory_control_block * block_manager);
 void * sliceChunk(memory_block_meta * chunk, size_t request);
-void * mergeBlock(memory_block_meta * merged);
+void * mergeBlock(memory_block_meta * merged, memory_control_block * block_manager);
 #endif

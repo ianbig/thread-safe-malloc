@@ -8,33 +8,34 @@
 
 void * ts_malloc_lock(size_t size) {
   pthread_mutex_lock(&lock);
-  void * ret_addr = bf_malloc(size);
+  void * ret_addr = bf_malloc(size, &block_manager);
   pthread_mutex_unlock(&lock);
 
   return ret_addr;
 }
+
 void ts_free_lock(void * ptr) {
   pthread_mutex_lock(&lock);
-  bf_free(ptr);
+  bf_free(ptr, block_manager);
   pthread_mutex_unlock(&lock);
 }
 
-void init_memory_control_block() {
+void init_memory_control_block(memory_control_block ** block_manager) {
   // initialized memory for block manager
-  block_manager = sbrk(sizeof(memory_control_block));
-  block_manager->freeListHead = NULL;
+  *block_manager = sbrk(sizeof(memory_control_block));
+  (*block_manager)->freeListHead = NULL;
 }
 
-void * bf_malloc(size_t size) {
-  if (block_manager == NULL) {
-    init_memory_control_block();
+void * bf_malloc(size_t size, memory_control_block ** block_manager) {
+  if (*block_manager == NULL) {
+    init_memory_control_block(block_manager);
   }
   // find free list for first freed block
-  void * chunk = bf_getBlock(size);
+  void * chunk = bf_getBlock(size, *block_manager);
   return chunk;
 }
 
-void * bf_getBlock(size_t size) {
+void * bf_getBlock(size_t size, memory_control_block * block_manager) {
   memory_block_meta * freePtr = block_manager->freeListHead;
   size_t best_size = INT_MAX;
   memory_block_meta * best_block = NULL;
@@ -53,15 +54,15 @@ void * bf_getBlock(size_t size) {
   }
 
   if (best_block != NULL) {
-    removeFromList(best_block);
+    removeFromList(best_block, block_manager);
     void * remainChunk = sliceChunk(best_block, size);
     if (remainChunk != NULL) {
-      insertToList(remainChunk);
+      insertToList(remainChunk, block_manager);
     }
   }
 
   else {
-    best_block = getNewBlock(size + sizeof(memory_block_meta));
+    best_block = getNewBlock(size + sizeof(memory_block_meta), block_manager);
   }
 
   best_block->type = MEM_ALLOCATED;
@@ -69,7 +70,7 @@ void * bf_getBlock(size_t size) {
   return best_block->data;
 }
 
-void * insertToList(memory_block_meta * toAdd) {
+void * insertToList(memory_block_meta * toAdd, memory_control_block * block_manager) {
   assert(toAdd != NULL);
   memory_block_meta * curNode = block_manager->freeListHead;
   while (curNode != NULL && curNode->nextBlock != NULL && curNode < toAdd) {
@@ -105,7 +106,8 @@ void * insertToList(memory_block_meta * toAdd) {
   return toAdd;
 }
 
-void * removeFromList(memory_block_meta * toRemove) {
+void * removeFromList(memory_block_meta * toRemove,
+                      memory_control_block * block_manager) {
   if (toRemove == block_manager->freeListHead) {
     block_manager->freeListHead = toRemove->nextBlock;
   }
@@ -122,7 +124,7 @@ void * removeFromList(memory_block_meta * toRemove) {
   return toRemove;
 }
 
-void * getNewBlock(size_t size) {
+void * getNewBlock(size_t size, memory_control_block * block_manager) {
   memory_block_meta * newChunk = sbrk(size);
   newChunk->size = size - sizeof(*newChunk);
   newChunk->type = MEM_ALLOCATED;
@@ -153,7 +155,7 @@ void * sliceChunk(memory_block_meta * chunk, size_t request) {
   return remain_chunk;
 }
 
-void bf_free(void * toFree) {
+void bf_free(void * toFree, memory_control_block * block_manager) {
   memory_block_meta * freeBlock = toFree - sizeof(memory_block_meta);
   assert(block_manager != NULL);
 
@@ -163,11 +165,11 @@ void bf_free(void * toFree) {
   }
 
   freeBlock->type = MEM_FREE;
-  freeBlock = insertToList(freeBlock);
-  mergeBlock(freeBlock);
+  freeBlock = insertToList(freeBlock, block_manager);
+  mergeBlock(freeBlock, block_manager);
 }
 
-void * mergeBlock(memory_block_meta * merged) {
+void * mergeBlock(memory_block_meta * merged, memory_control_block * block_manager) {
   memory_block_meta * prev_block_end = NULL;
   memory_block_meta * prev_block_start = merged->prevBlock;
   if (merged->prevBlock != NULL) {
@@ -182,7 +184,7 @@ void * mergeBlock(memory_block_meta * merged) {
   if (next_block_start != NULL &&
       (void *)merged + sizeof(*merged) + merged->size == next_block_start) {
     merged->size += sizeof(*next_block_start) + next_block_start->size;
-    removeFromList(next_block_start);
+    removeFromList(next_block_start, block_manager);
 
     // TODO: remove this
     freeBlock = merged;
@@ -193,7 +195,7 @@ void * mergeBlock(memory_block_meta * merged) {
       (void *)prev_block_start + sizeof(*prev_block_start) + prev_block_start->size ==
           merged) {
     prev_block_start->size += sizeof(*merged) + merged->size;
-    removeFromList(merged);
+    removeFromList(merged, block_manager);
 
     // TODO: remove this
     curNode = merged;
