@@ -8,7 +8,7 @@
 
 void * ts_malloc_lock(size_t size) {
   pthread_mutex_lock(&lock);
-  void * ret_addr = bf_malloc(size, &block_manager);
+  void * ret_addr = bf_malloc(size, &block_manager_lock);
   pthread_mutex_unlock(&lock);
 
   return ret_addr;
@@ -16,13 +16,25 @@ void * ts_malloc_lock(size_t size) {
 
 void ts_free_lock(void * ptr) {
   pthread_mutex_lock(&lock);
-  bf_free(ptr, block_manager);
+  bf_free(ptr, block_manager_lock);
   pthread_mutex_unlock(&lock);
+}
+
+void * ts_malloc_nolock(size_t size) {
+  // printf("thread local: %p\n", block_manager_thread_local);
+  void * ret_addr = bf_malloc(size, &block_manager_thread_local);
+  return ret_addr;
+}
+
+void ts_free_nolock(void * ptr) {
+  bf_free(ptr, block_manager_thread_local);
 }
 
 void init_memory_control_block(memory_control_block ** block_manager) {
   // initialized memory for block manager
+  pthread_mutex_lock(&sbrk_lock);
   *block_manager = sbrk(sizeof(memory_control_block));
+  pthread_mutex_unlock(&sbrk_lock);
   (*block_manager)->freeListHead = NULL;
 }
 
@@ -125,13 +137,15 @@ void * removeFromList(memory_block_meta * toRemove,
 }
 
 void * getNewBlock(size_t size, memory_control_block * block_manager) {
+  pthread_mutex_lock(&sbrk_lock);
   memory_block_meta * newChunk = sbrk(size);
+  pthread_mutex_unlock(&sbrk_lock);
   newChunk->size = size - sizeof(*newChunk);
   newChunk->type = MEM_ALLOCATED;
   newChunk->nextBlock = NULL;
   newChunk->prevBlock = NULL;
   newChunk->data = (void *)newChunk + sizeof(memory_block_meta);
-  block_manager->heap_size += size;
+  // block_manager->heap_size += size;
 
   return newChunk;
 }
@@ -157,7 +171,10 @@ void * sliceChunk(memory_block_meta * chunk, size_t request) {
 
 void bf_free(void * toFree, memory_control_block * block_manager) {
   memory_block_meta * freeBlock = toFree - sizeof(memory_block_meta);
-  assert(block_manager != NULL);
+  // assert(block_manager != NULL);
+  if (block_manager == NULL) {
+    init_memory_control_block(&block_manager);
+  }
 
   if (freeBlock->type == MEM_FREE) {
     fprintf(stderr, "Error: double free at adress %p\n", freeBlock);

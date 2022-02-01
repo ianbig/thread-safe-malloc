@@ -1,6 +1,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 #include "my_malloc.h"
 
@@ -55,6 +56,7 @@ void do_allocate(int thread_id) {
 
 void * allocate(void * arg) {
   int id = *((int *)arg);
+  printf("thread: %d\n", gettid());
   do_allocate(id);
   return NULL;
 }
@@ -129,6 +131,7 @@ int main(int argc, char * argv[]) {
     printf("Test failed\n");
   }  //else
 
+  // printf("thread local: %p\n", block_manager_thread_local);
   for (i = 0; i < NUM_THREADS * NUM_ITEMS; i++) {
     FREE(malloc_items[i].address);
   }  //for i

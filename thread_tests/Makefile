@@ -1,7 +1,7 @@
 CC=gcc
-CFLAGS=-O3 -g
+CFLAGS=-O0 -g
 MALLOC_VERSION=LOCK_VERSION
-#MALLOC_VERSION=NOLOCK_VERSION
+# MALLOC_VERSION=NOLOCK_VERSION
 WDIR=../
 
 all: thread_test thread_test_malloc_free thread_test_malloc_free_change_thread thread_test_measurement

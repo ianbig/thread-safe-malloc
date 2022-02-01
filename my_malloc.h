@@ -23,17 +23,17 @@ struct memory_control_block {
 };
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t sbrk_lock = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct memory_control_block memory_control_block;
-memory_control_block * block_manager = NULL;
-
-// __thread memory_control_block * block_manager_thread_local = NULL;
+memory_control_block * block_manager_lock = NULL;
+static __thread memory_control_block * block_manager_thread_local = NULL;
 
 void * ts_malloc_lock(size_t size);
 void ts_free_lock(void * ptr);
 
-// void * ts_malloc_nolock(size_t size);
-// void ts_free_nolock(void * ptr);
+void * ts_malloc_nolock(size_t size);
+void ts_free_nolock(void * ptr);
 
 void init_memory_control_block(memory_control_block ** block_manager);
 void * bf_malloc(size_t size, memory_control_block ** block_manager);
